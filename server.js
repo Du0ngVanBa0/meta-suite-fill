@@ -73,9 +73,20 @@ async function fillJob(job, mapping) {
   job.stage = 'filling';
   job.message = 'Đang điền tiêu đề và mô tả...';
   await meta.fillCaptions(job.page, mapping);
-  job.stage = 'ready';
   job.current = 0;
-  job.message = 'Đã điền nội dung. Chọn cách đăng cho từng hàng; bạn tự bấm Update trên Meta.';
+  if (mapping.length === 1 && mapping[0].mode === 'now') {
+    try {
+      await meta.preparePublishNow(job.page, mapping[0]);
+      job.stage = 'awaitingUpdate';
+      job.message = `Hàng ${mapping[0].row}: đã chọn Đăng ngay. Bạn tự bấm Update và Publish trên Meta.`;
+      return;
+    } catch (error) {
+      job.message = `Hàng ${mapping[0].row}: ${error.message} Bấm Thử lại Đăng ngay trong Tiến trình nếu cần.`;
+    }
+  } else {
+    job.message = 'Đã điền nội dung. Bấm điền giờ từng hàng; bạn tự bấm Update trên Meta.';
+  }
+  job.stage = 'ready';
 }
 
 async function runJob(job) {
@@ -165,8 +176,10 @@ async function handleApi(req, res, route) {
   }
   if (route === '/api/start') {
     const page = meta.selectedPage(input.tabId);
-    const active = [...jobs.values()].find(job => job.page === page && !['error', 'cancelled', 'done'].includes(job.stage));
-    if (active) throw new Error('Tab này đã có lượt điền đang chạy.');
+    const active = [...jobs.values()].find(job => job.page === page && !['error', 'cancelled', 'done', 'replaced', 'cleared'].includes(job.stage));
+    if (active && ['starting', 'uploading', 'filling', 'clearing'].includes(active.stage)) {
+      throw new Error('Video của lượt trước vẫn đang được xử lý trên Meta. Đợi bước đó xong rồi bấm lại.');
+    }
     const rows = await meta.validateFiles(input.rows);
     rows.forEach(row => {
       row.mode ||= 'schedule';
@@ -175,6 +188,10 @@ async function handleApi(req, res, route) {
     });
     const assetId = new URL(page.url()).searchParams.get('asset_id') || '';
     const pattern = rows.some(row => row.mode === 'schedule') && input.pattern ? parsePattern(input.pattern).pattern : '';
+    if (active) {
+      active.stage = 'replaced';
+      active.message = 'Lượt cũ đã được thay bằng lượt mới trên cùng tab Meta.';
+    }
     const job = { id: randomUUID(), page, rows, assetId, pattern, startDate: validDate(input.startDate) ? input.startDate : (rows.find(row => row.mode === 'schedule')?.date || ''),
       stage: 'starting', message: 'Đang chuẩn bị...', current: 0, cancelled: false };
     jobs.set(job.id, job);

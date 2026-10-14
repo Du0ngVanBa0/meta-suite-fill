@@ -98,7 +98,7 @@ function assignFiles() {
 function drawRows() {
   const tbody = $('rows');
   tbody.replaceChildren();
-  if (!state.rows.length) { const tr = tbody.insertRow(); const td = cell(tr, 'Đọc Sheets để hiện các hàng.'); td.colSpan = 7; td.className = 'empty'; return; }
+  if (!state.rows.length) { const tr = tbody.insertRow(); const td = cell(tr, 'Đọc Sheets để hiện các hàng.'); td.colSpan = 6; td.className = 'empty'; return; }
   for (const row of state.rows) {
     const tr = tbody.insertRow();
     cell(tr, String(row.row));
@@ -120,30 +120,31 @@ function drawRows() {
     pick.addEventListener('click', () => act(() => pickSingle(row)));
     videoCell.append(select, pick);
     cell(tr, videoCell);
-    const mode = document.createElement('select');
-    mode.setAttribute('aria-label', `Cách đăng hàng ${row.row}`);
-    mode.append(option('schedule', 'Hẹn giờ'), option('now', 'Đăng ngay'));
-    mode.value = row.mode || 'schedule';
-    cell(tr, mode);
-    const date = document.createElement('input'); date.type = 'date'; date.value = row.date || ''; date.disabled = mode.value === 'now'; date.addEventListener('change', () => { row.date = date.value; updateStart(); }); cell(tr, date);
-    const time = document.createElement('input'); time.type = 'time'; time.value = row.time || ''; time.disabled = mode.value === 'now'; time.addEventListener('change', () => { row.time = time.value; updateStart(); }); cell(tr, time);
-    mode.addEventListener('change', () => { row.mode = mode.value; date.disabled = time.disabled = mode.value === 'now'; updateStart(); });
-    const single = document.createElement('button');
-    single.className = 'start-single';
-    single.textContent = 'Đưa 1 video';
-    single.setAttribute('aria-label', `Đưa video hàng ${row.row} vào Meta`);
-    single.addEventListener('click', () => act(() => startRows([row])));
-    cell(tr, single);
+    const date = document.createElement('input'); date.type = 'date'; date.value = row.date || ''; date.addEventListener('change', () => { row.date = date.value; updateStart(); }); cell(tr, date);
+    const time = document.createElement('input'); time.type = 'time'; time.value = row.time || ''; time.addEventListener('change', () => { row.time = time.value; updateStart(); }); cell(tr, time);
+    const actions = document.createElement('div'); actions.className = 'row-actions';
+    for (const [mode, label] of [['schedule', 'Hẹn giờ'], ['now', 'Đăng ngay']]) {
+      const button = document.createElement('button');
+      button.className = mode === 'now' ? 'start-now' : 'start-schedule secondary';
+      button.textContent = label;
+      button.setAttribute('aria-label', `${label} hàng ${row.row}`);
+      button.addEventListener('click', () => act(() => startRows([row], mode)));
+      actions.append(button);
+    }
+    cell(tr, actions);
   }
   updateStart();
 }
 
 function updateStart() {
-  const readyRow = row => row?.file && (row.mode === 'now' || (row.date && row.time));
-  $('start').disabled = !state.tab?.ready || !state.rows.length || state.rows.some(row => !readyRow(row)) || Boolean(state.jobId);
-  document.querySelectorAll('.start-single').forEach((button, index) => {
+  const available = state.tab?.ready && !state.jobId;
+  $('start').disabled = !available || !state.rows.length || state.rows.some(row => !row.file || !row.date || !row.time);
+  document.querySelectorAll('.start-schedule').forEach((button, index) => {
     const row = state.rows[index];
-    button.disabled = !state.tab?.ready || !readyRow(row) || Boolean(state.jobId);
+    button.disabled = !available || !row?.file || !row.date || !row.time;
+  });
+  document.querySelectorAll('.start-now').forEach((button, index) => {
+    button.disabled = !available || !state.rows[index]?.file;
   });
 }
 
@@ -157,7 +158,7 @@ function applyPreset() {
 
 async function readRows() {
   const result = await api('read', fields());
-  state.rows = result.rows.map(row => ({ ...row, file: '', mode: 'schedule', date: '', time: '' }));
+  state.rows = result.rows.map(row => ({ ...row, file: '', date: '', time: '' }));
   assignFiles();
   if ($('startDate').value) applyPreset(); else drawRows();
   notice(`Đã đọc ${state.rows.length} hàng.`, true);
@@ -203,19 +204,19 @@ function updatePatternPreview() {
     }).join('  |  ') + ` · Lặp mỗi ${parsed.days.length} ngày.`;
   } catch (error) { $('patternPreview').textContent = error.message; }
   const preset = state.presets[state.tab?.assetId];
-  const current = `${$('timeZone').value.trim()}\n${$('slots').value.trim()}\n${$('startDate').value}`;
+  const current = `${$('timeZone').value.trim()}\n${$('slots').value.trim()}`;
   let saved = '';
   if (preset) {
-    try { saved = `${preset.timeZone}\n${Schedule.parsePattern(storedPattern(preset)).pattern}\n${preset.startDate || state.settings.startDate || ''}`; }
-    catch { saved = `${preset.timeZone}\n${storedPattern(preset)}\n${preset.startDate || state.settings.startDate || ''}`; }
+    try { saved = `${preset.timeZone}\n${Schedule.parsePattern(storedPattern(preset)).pattern}`; }
+    catch { saved = `${preset.timeZone}\n${storedPattern(preset)}`; }
   }
   let normalized = current;
-  try { normalized = `${$('timeZone').value.trim()}\n${Schedule.parsePattern($('slots').value).pattern}\n${$('startDate').value}`; }
+  try { normalized = `${$('timeZone').value.trim()}\n${Schedule.parsePattern($('slots').value).pattern}`; }
   catch { /* keep the typed value visible until corrected */ }
   $('presetStatus').textContent = !state.tab?.assetId
-    ? 'Chọn Page để lưu ngày bắt đầu và mẫu giờ riêng; hiện đang tự lưu cấu hình dùng gần nhất.'
+    ? 'Chọn Page để lưu mẫu giờ riêng; ngày bắt đầu mặc định là hôm nay.'
     : !preset ? 'Page này chưa có lịch đã lưu. Múi giờ tự nhận từ Meta khi điền.'
-      : saved === normalized ? (preset.timeZone ? 'Đã lưu ngày bắt đầu, mẫu giờ và múi giờ Meta cho Page này.' : 'Đã lưu ngày bắt đầu và mẫu giờ cho Page này. Múi giờ sẽ tự nhận từ Meta khi điền.')
+      : saved === normalized ? (preset.timeZone ? 'Đã lưu mẫu giờ và múi giờ Meta cho Page này.' : 'Đã lưu mẫu giờ cho Page này. Múi giờ sẽ tự nhận từ Meta khi điền.')
         : 'Đang tự lưu thay đổi lịch cho Page này...';
 }
 
@@ -225,7 +226,6 @@ function chooseTab() {
   $('pageName').textContent = state.tab?.assetId ? `Page ID ${state.tab.assetId}` : 'Chưa chọn Page';
   const preset = state.presets[state.tab?.assetId];
   $('timeZone').value = preset?.timeZone || '';
-  $('startDate').value = preset?.startDate || state.settings.startDate || $('startDate').value;
   $('slots').value = storedPattern(preset) || state.settings.pattern || '19,21,23 | 7,9';
   updatePatternPreview();
   queuePresetSave();
@@ -263,14 +263,14 @@ async function savePreset() {
     $('slots').value = result.preset.pattern;
     updatePatternPreview();
   }
-  notice('Đã lưu ngày bắt đầu và mẫu giờ cho Page này trên máy.', true);
+  notice('Đã lưu mẫu giờ cho Page này trên máy. Ngày sẽ mặc định là hôm nay ở lần mở sau.', true);
 }
 
-async function startRows(rows) {
+async function startRows(rows, mode = 'schedule') {
   const tab = state.tab;
-  if (rows.some(row => row.mode !== 'now')) await savePreset();
+  if (mode === 'schedule') await savePreset();
   if (state.tab !== tab) throw new Error('Tab Meta đã thay đổi trong lúc chuẩn bị. Kiểm tra lại rồi bấm điền.');
-  const result = await api('start', { tabId: tab.id, rows,
+  const result = await api('start', { tabId: tab.id, rows: rows.map(row => ({ ...row, mode })),
     pattern: $('slots').value, startDate: $('startDate').value });
   state.jobId = result.job.id;
   $('jobSection').hidden = false;
@@ -315,7 +315,7 @@ function renderJob(job) {
   }
   const next = $('scheduleNext');
   next.hidden = !['ready', 'awaitingUpdate'].includes(job.stage);
-  const action = row => row?.mode === 'now' ? `Chọn Đăng ngay hàng ${row.row}` : `Điền giờ hàng ${row?.row || ''}`;
+  const action = row => row?.mode === 'now' ? `Thử lại Đăng ngay hàng ${row.row}` : `Điền giờ hàng ${row?.row || ''}`;
   if (!next.hidden) next.textContent = job.stage === 'awaitingUpdate'
     ? `Đã bấm Update → ${job.current + 1 < job.rows.length ? action(job.rows[job.current + 1]) : 'xong'}`
     : action(job.rows[job.current]);
@@ -323,7 +323,7 @@ function renderJob(job) {
   $('clearVideos').hidden = !['ready', 'awaitingUpdate', 'clearError'].includes(job.stage);
   if (job.stage !== state.lastStage) renderMapping(job);
   state.lastStage = job.stage;
-  if (['done', 'cleared'].includes(job.stage)) { state.jobId = null; updateStart(); }
+  if (['done', 'cleared', 'replaced'].includes(job.stage)) { state.jobId = null; updateStart(); }
 }
 
 async function clearVideos() {
@@ -385,7 +385,6 @@ const presetsReady = api('presets').then(result => {
   for (const id of ['sheetUrl', 'sheetTab', 'rowList', 'titleColumn', 'descriptionColumn']) {
     if (typeof state.settings[id] === 'string') $(id).value = state.settings[id];
   }
-  if (state.settings.startDate) $('startDate').value = state.settings.startDate;
   if (state.settings.pattern) $('slots').value = state.settings.pattern;
   state.settingsLoaded = true;
   $('settingsStatus').textContent = 'Cấu hình Sheets và lịch dùng gần nhất được tự lưu trên máy.';
