@@ -260,4 +260,20 @@ async function prepareSchedule(page, row) {
   return { date: chosenText, time: row.time, timezone };
 }
 
-module.exports = { listProfiles, listTabs, selectedPage, validateFiles, uploadAll, inspectCards, matchCards, fillCaptions, removeUploaded, prepareSchedule };
+async function preparePublishNow(page, row) {
+  const cards = await inspectCards(page);
+  if (!cards.some(card => card.index === row.cardIndex)) throw new Error(`Không còn thấy video của hàng ${row.row}.`);
+  const root = page.locator(`[data-meta-suite-fill-card="${row.cardIndex}"]`);
+  const update = page.getByRole('button', { name: 'Update', exact: true }).last();
+  if (!await update.isVisible().catch(() => false)) {
+    await root.getByRole('button', { name: /Scheduling options|Publish now/i }).first().click();
+  }
+  const options = page.getByRole('button', { name: 'Schedule', exact: true }).last().locator('xpath=..');
+  const publishNow = options.getByRole('button', { name: 'Publish now', exact: true });
+  if (await publishNow.count() !== 1) throw new Error('Không nhận diện chắc tùy chọn Đăng ngay trên Meta; chưa bấm Update.');
+  await publishNow.click();
+  await update.waitFor({ state: 'visible' });
+  return {};
+}
+
+module.exports = { listProfiles, listTabs, selectedPage, validateFiles, uploadAll, inspectCards, matchCards, fillCaptions, removeUploaded, prepareSchedule, preparePublishNow };

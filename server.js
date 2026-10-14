@@ -64,7 +64,7 @@ function validDate(value) {
 function publicJob(job) {
   return { id: job.id, stage: job.stage, message: job.message, current: job.current,
     timeZone: job.timeZone, preset: job.preset,
-    rows: job.rows.map(row => ({ row: row.row, title: row.title, fileName: row.fileName, date: row.date, time: row.time })),
+    rows: job.rows.map(row => ({ row: row.row, title: row.title, fileName: row.fileName, mode: row.mode, date: row.date, time: row.time })),
     cards: job.stage === 'needsMapping' ? job.cards.map(card => ({ index: card.index, text: card.text.slice(0, 120) })) : undefined };
 }
 
@@ -75,7 +75,7 @@ async function fillJob(job, mapping) {
   await meta.fillCaptions(job.page, mapping);
   job.stage = 'ready';
   job.current = 0;
-  job.message = 'Đã điền nội dung. Bấm Điền giờ hàng đầu tiên; bạn tự bấm Update trên Meta.';
+  job.message = 'Đã điền nội dung. Chọn cách đăng cho từng hàng; bạn tự bấm Update trên Meta.';
 }
 
 async function runJob(job) {
@@ -168,10 +168,14 @@ async function handleApi(req, res, route) {
     const active = [...jobs.values()].find(job => job.page === page && !['error', 'cancelled', 'done'].includes(job.stage));
     if (active) throw new Error('Tab này đã có lượt điền đang chạy.');
     const rows = await meta.validateFiles(input.rows);
-    rows.forEach(assertSchedule);
+    rows.forEach(row => {
+      row.mode ||= 'schedule';
+      if (!['schedule', 'now'].includes(row.mode)) throw new Error(`Hàng ${row.row}: cách đăng không hợp lệ.`);
+      if (row.mode === 'schedule') assertSchedule(row);
+    });
     const assetId = new URL(page.url()).searchParams.get('asset_id') || '';
-    const pattern = input.pattern ? parsePattern(input.pattern).pattern : '';
-    const job = { id: randomUUID(), page, rows, assetId, pattern, startDate: validDate(input.startDate) ? input.startDate : rows[0].date,
+    const pattern = rows.some(row => row.mode === 'schedule') && input.pattern ? parsePattern(input.pattern).pattern : '';
+    const job = { id: randomUUID(), page, rows, assetId, pattern, startDate: validDate(input.startDate) ? input.startDate : (rows.find(row => row.mode === 'schedule')?.date || ''),
       stage: 'starting', message: 'Đang chuẩn bị...', current: 0, cancelled: false };
     jobs.set(job.id, job);
     void runJob(job);
@@ -227,7 +231,7 @@ async function handleApi(req, res, route) {
     }
     const row = job.rows[job.current];
     try {
-      const value = await meta.prepareSchedule(job.page, row);
+      const value = row.mode === 'now' ? await meta.preparePublishNow(job.page, row) : await meta.prepareSchedule(job.page, row);
       if (value.timezone) {
         job.timeZone = value.timezone;
         try {
@@ -246,7 +250,9 @@ async function handleApi(req, res, route) {
         } catch { /* Scheduling is already filled; preset persistence must not block review. */ }
       }
       job.stage = 'awaitingUpdate';
-      job.message = `Hàng ${row.row}: đã điền ${value.date} ${value.time}${value.timezone ? ` (${value.timezone})` : ''}. Bạn tự bấm Update trên Meta, rồi bấm Tiếp trong tool.`;
+      job.message = row.mode === 'now'
+        ? `Hàng ${row.row}: đã chọn Đăng ngay. Bạn tự bấm Update trên Meta, rồi bấm Tiếp trong tool. Publish cuối trang vẫn do bạn quyết định.`
+        : `Hàng ${row.row}: đã điền ${value.date} ${value.time}${value.timezone ? ` (${value.timezone})` : ''}. Bạn tự bấm Update trên Meta, rồi bấm Tiếp trong tool.`;
     } catch (error) {
       job.stage = 'ready';
       job.message = `Hàng ${row.row}: ${error.message}`;

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { prepareSchedule } = require('./meta');
+const { prepareSchedule, preparePublishNow } = require('./meta');
 
 test('schedule follows timezone shown by Meta even when stored timezone differs', async () => {
   const input = (value, current) => ({
@@ -33,4 +33,19 @@ test('schedule follows timezone shown by Meta even when stored timezone differs'
   const result = await prepareSchedule(page, { row: 174, cardIndex: 0, date: '2026-10-13', time: '19:00' }, 'Asia/Saigon');
   assert.equal(result.timezone, 'Asia/Jakarta');
   assert.equal(result.time, '19:00');
+});
+
+test('Publish now chỉ chọn tùy chọn, để người dùng tự bấm Update', async () => {
+  const clicks = [];
+  const update = { last() { return this; }, async isVisible() { return clicks.includes('now'); }, async waitFor() { assert.ok(clicks.includes('now')); } };
+  const publishNow = { async count() { return 1; }, async click() { clicks.push('now'); } };
+  const schedule = { last() { return this; }, locator() { return { getByRole() { return publishNow; } }; } };
+  const menu = { first() { return this; }, async click() { clicks.push('open'); } };
+  const page = {
+    async evaluate() { return [{ index: 0 }]; },
+    locator() { return { getByRole() { return menu; } }; },
+    getByRole(_role, options) { return options.name === 'Update' ? update : schedule; }
+  };
+  await preparePublishNow(page, { row: 3, cardIndex: 0 });
+  assert.deepEqual(clicks, ['open', 'now']);
 });

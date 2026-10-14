@@ -98,7 +98,7 @@ function assignFiles() {
 function drawRows() {
   const tbody = $('rows');
   tbody.replaceChildren();
-  if (!state.rows.length) { const tr = tbody.insertRow(); const td = cell(tr, 'Đọc Sheets để hiện các hàng.'); td.colSpan = 6; td.className = 'empty'; return; }
+  if (!state.rows.length) { const tr = tbody.insertRow(); const td = cell(tr, 'Đọc Sheets để hiện các hàng.'); td.colSpan = 7; td.className = 'empty'; return; }
   for (const row of state.rows) {
     const tr = tbody.insertRow();
     cell(tr, String(row.row));
@@ -120,8 +120,14 @@ function drawRows() {
     pick.addEventListener('click', () => act(() => pickSingle(row)));
     videoCell.append(select, pick);
     cell(tr, videoCell);
-    const date = document.createElement('input'); date.type = 'date'; date.value = row.date || ''; date.addEventListener('change', () => { row.date = date.value; updateStart(); }); cell(tr, date);
-    const time = document.createElement('input'); time.type = 'time'; time.value = row.time || ''; time.addEventListener('change', () => { row.time = time.value; updateStart(); }); cell(tr, time);
+    const mode = document.createElement('select');
+    mode.setAttribute('aria-label', `Cách đăng hàng ${row.row}`);
+    mode.append(option('schedule', 'Hẹn giờ'), option('now', 'Đăng ngay'));
+    mode.value = row.mode || 'schedule';
+    cell(tr, mode);
+    const date = document.createElement('input'); date.type = 'date'; date.value = row.date || ''; date.disabled = mode.value === 'now'; date.addEventListener('change', () => { row.date = date.value; updateStart(); }); cell(tr, date);
+    const time = document.createElement('input'); time.type = 'time'; time.value = row.time || ''; time.disabled = mode.value === 'now'; time.addEventListener('change', () => { row.time = time.value; updateStart(); }); cell(tr, time);
+    mode.addEventListener('change', () => { row.mode = mode.value; date.disabled = time.disabled = mode.value === 'now'; updateStart(); });
     const single = document.createElement('button');
     single.className = 'start-single';
     single.textContent = 'Đưa 1 video';
@@ -133,10 +139,11 @@ function drawRows() {
 }
 
 function updateStart() {
-  $('start').disabled = !state.tab?.ready || !state.rows.length || state.rows.some(row => !row.file || !row.date || !row.time) || Boolean(state.jobId);
+  const readyRow = row => row?.file && (row.mode === 'now' || (row.date && row.time));
+  $('start').disabled = !state.tab?.ready || !state.rows.length || state.rows.some(row => !readyRow(row)) || Boolean(state.jobId);
   document.querySelectorAll('.start-single').forEach((button, index) => {
     const row = state.rows[index];
-    button.disabled = !state.tab?.ready || !row?.file || !row.date || !row.time || Boolean(state.jobId);
+    button.disabled = !state.tab?.ready || !readyRow(row) || Boolean(state.jobId);
   });
 }
 
@@ -150,7 +157,7 @@ function applyPreset() {
 
 async function readRows() {
   const result = await api('read', fields());
-  state.rows = result.rows.map(row => ({ ...row, file: '', date: '', time: '' }));
+  state.rows = result.rows.map(row => ({ ...row, file: '', mode: 'schedule', date: '', time: '' }));
   assignFiles();
   if ($('startDate').value) applyPreset(); else drawRows();
   notice(`Đã đọc ${state.rows.length} hàng.`, true);
@@ -261,7 +268,7 @@ async function savePreset() {
 
 async function startRows(rows) {
   const tab = state.tab;
-  await savePreset();
+  if (rows.some(row => row.mode !== 'now')) await savePreset();
   if (state.tab !== tab) throw new Error('Tab Meta đã thay đổi trong lúc chuẩn bị. Kiểm tra lại rồi bấm điền.');
   const result = await api('start', { tabId: tab.id, rows,
     pattern: $('slots').value, startDate: $('startDate').value });
@@ -308,9 +315,10 @@ function renderJob(job) {
   }
   const next = $('scheduleNext');
   next.hidden = !['ready', 'awaitingUpdate'].includes(job.stage);
+  const action = row => row?.mode === 'now' ? `Chọn Đăng ngay hàng ${row.row}` : `Điền giờ hàng ${row?.row || ''}`;
   if (!next.hidden) next.textContent = job.stage === 'awaitingUpdate'
-    ? `Đã bấm Update → điền giờ ${job.current + 1 < job.rows.length ? `hàng ${job.rows[job.current + 1].row}` : 'xong'}`
-    : `Điền giờ hàng ${job.rows[job.current]?.row || ''}`;
+    ? `Đã bấm Update → ${job.current + 1 < job.rows.length ? action(job.rows[job.current + 1]) : 'xong'}`
+    : action(job.rows[job.current]);
   $('cancel').hidden = !['starting', 'uploading'].includes(job.stage);
   $('clearVideos').hidden = !['ready', 'awaitingUpdate', 'clearError'].includes(job.stage);
   if (job.stage !== state.lastStage) renderMapping(job);
