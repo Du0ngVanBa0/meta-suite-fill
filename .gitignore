@@ -1,0 +1,10 @@
+node_modules/
+user-data.json
+user-data.json.tmp
+.env
+.tmp/
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.avi

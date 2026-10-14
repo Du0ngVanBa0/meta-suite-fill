@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meta Suite Fill</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/schedule.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><strong>Meta Suite Fill</strong><span>Sheets → video local → lịch Reels · Không nhấn Update / Publish</span></header>
+    <div class="grid">
+      <section>
+        <h2>1. Dữ liệu Sheets</h2>
+        <label>Link Sheets<input id="sheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off"></label>
+        <div class="fields four">
+          <label>Tên tab<input id="sheetTab" value="output"></label>
+          <label>Hàng<input id="rowList" placeholder="2,4-6"></label>
+          <label>Cột tiêu đề<input id="titleColumn" value="F" maxlength="3"></label>
+          <label>Cột mô tả<input id="descriptionColumn" value="D" maxlength="3"></label>
+        </div>
+        <div class="actions"><button id="readRows">Đọc hàng</button><span id="settingsStatus" class="hint">Đang tải cấu hình đã lưu...</span></div>
+      </section>
+      <section>
+        <h2>2. Tab Meta đang mở</h2>
+        <div class="fields two">
+          <label>AdsPower API key <small>chỉ giữ trong phiên</small><input id="apiKey" type="password" autocomplete="off" placeholder="Nhập nếu Local API yêu cầu"></label>
+          <label>Profile đang mở<select id="profile"><option value="">Chưa quét</option></select></label>
+        </div>
+        <div class="actions"><button id="scanProfiles">Quét profile</button><button id="scanTabs" class="secondary">Xem tab Meta</button></div>
+        <label>Tab sẽ điền<select id="tab"><option value="">Chưa chọn</option></select></label>
+        <p id="tabInfo" class="hint">Chỉ tab Bulk upload reels được dùng để điền.</p>
+      </section>
+    </div>
+    <section>
+      <div class="section-head"><h2>3. Mẫu giờ của Page & video</h2><span id="pageName" class="badge">Chưa chọn Page</span></div>
+      <div class="fields preset">
+        <label>Ngày bắt đầu<input id="startDate" type="date"></label>
+        <label>Múi giờ Page <small>tự nhận từ Meta</small><input id="timeZone" readonly placeholder="Tự nhận khi điền lịch"></label>
+        <label>Mẫu giờ <small>Ví dụ: 19,21,23 | 7,9 (| = ngày kế)</small><input id="slots" value="19,21,23 | 7,9"></label>
+        <div class="preset-buttons"><button id="applyPreset" class="secondary">Áp vào các hàng</button><button id="savePreset" class="secondary">Lưu mẫu cho Page</button></div>
+      </div>
+      <p id="patternPreview" class="hint"></p>
+      <p id="presetStatus" class="hint">Chọn Page để tự lưu ngày bắt đầu và mẫu giờ riêng.</p>
+      <div class="actions"><button id="pickFiles" class="secondary">Chọn nhiều video một lần</button><span id="fileCount" class="hint">Hoặc chọn từng video ngay tại mỗi hàng.</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Hàng</th><th>Tiêu đề / mô tả</th><th>Video local</th><th>Ngày</th><th>Giờ</th><th>Thao tác</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Đọc Sheets để hiện các hàng.</td></tr></tbody></table></div>
+      <div class="bottom"><span>Bạn tự bấm Update từng hàng và Publish cuối trang. Nút Xóa chỉ chạy khi bạn yêu cầu.</span><button id="start" disabled>Đưa video vào Meta & điền nội dung</button></div>
+    </section>
+    <section id="jobSection" hidden>
+      <div class="section-head"><h2>Tiến trình</h2><span id="jobStage" class="badge"></span></div>
+      <p id="jobMessage"></p>
+      <div id="mapping" hidden></div>
+      <div class="actions"><button id="scheduleNext" hidden>Điền giờ hàng tiếp theo</button><button id="clearVideos" class="secondary" hidden>Xóa video lượt này trên Meta</button><button id="cancel" class="secondary" hidden>Dừng tool</button></div>
+    </section>
+    <p id="notice" role="status"></p>
+    <footer>© Du0ngVanBa0 · Cấu hình Page lưu tại máy · API key không lưu</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "meta-suite-fill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fill Meta Business Suite bulk reels from Google Sheets without publishing",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright-core": "^1.58.2"
+  }
+}
