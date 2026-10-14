@@ -130,12 +130,16 @@ function assertSchedule(row) {
 }
 
 async function pickFiles(single = false) {
+  const { videoDirectory } = await readData();
   const args = ['-NoProfile', '-STA', '-File', path.join(__dirname, 'pick-files.ps1')];
   if (single) args.push('-Single');
+  if (videoDirectory) args.push('-InitialDirectory', videoDirectory);
   const { stdout } = await execFileAsync('powershell.exe', args,
     { encoding: 'utf8', maxBuffer: 1024 * 1024 });
   const files = JSON.parse(stdout.replace(/^\uFEFF/, '').trim());
-  return Array.isArray(files) ? files : [files];
+  const selected = Array.isArray(files) ? files : [files];
+  if (selected.length) await updateData(data => { data.videoDirectory = path.win32.dirname(selected[0]); });
+  return selected;
 }
 
 async function handleApi(req, res, route) {
