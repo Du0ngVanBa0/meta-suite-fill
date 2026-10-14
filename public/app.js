@@ -138,7 +138,8 @@ function drawRows() {
 
 function updateStart() {
   const available = state.tab?.ready && !state.jobId;
-  $('start').disabled = !available || !state.rows.length || state.rows.some(row => !row.file || !row.date || !row.time);
+  $('start').disabled = !available || !state.rows.length || state.rows.some(row => !row.file);
+  $('startSchedule').disabled = !available || !state.rows.length || state.rows.some(row => !row.file || !row.date || !row.time);
   document.querySelectorAll('.start-schedule').forEach((button, index) => {
     const row = state.rows[index];
     button.disabled = !available || !row?.file || !row.date || !row.time;
@@ -270,7 +271,8 @@ async function startRows(rows, mode = 'schedule') {
   const tab = state.tab;
   if (mode === 'schedule') await savePreset();
   if (state.tab !== tab) throw new Error('Tab Meta đã thay đổi trong lúc chuẩn bị. Kiểm tra lại rồi bấm điền.');
-  const result = await api('start', { tabId: tab.id, rows: rows.map(row => ({ ...row, mode })),
+  const result = await api('start', { tabId: tab.id, rows: rows.map(row => ({ ...row, mode,
+    date: mode === 'now' ? '' : row.date, time: mode === 'now' ? '' : row.time })),
     pattern: $('slots').value, startDate: $('startDate').value });
   state.jobId = result.job.id;
   $('jobSection').hidden = false;
@@ -278,7 +280,7 @@ async function startRows(rows, mode = 'schedule') {
   updateStart();
 }
 
-async function start() { await startRows(state.rows); }
+async function start() { await startRows(state.rows, 'now'); }
 
 function renderMapping(job) {
   const host = $('mapping');
@@ -366,6 +368,7 @@ on('pickFiles', pickFiles);
 on('applyPreset', async () => applyPreset());
 on('savePreset', savePreset);
 on('start', start);
+on('startSchedule', async () => startRows(state.rows, 'schedule'));
 on('scheduleNext', async () => renderJob((await api('schedule', { jobId: state.jobId })).job));
 on('clearVideos', clearVideos);
 on('cancel', async () => renderJob((await api('cancel', { jobId: state.jobId })).job));

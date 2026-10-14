@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 
-test('lượt đã điền xong không khóa tab cho lượt kế tiếp', async () => {
+test('đăng ngay nhiều video tự chọn Publish now và không khóa tab cho lượt kế tiếp', async () => {
   const listener = net.createServer();
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
   const port = listener.address().port;
@@ -15,9 +15,12 @@ test('lượt đã điền xong không khóa tab cho lượt kế tiếp', async
     require.cache[target] = { id: target, filename: target, loaded: true, exports: {
       selectedPage: () => page,
       validateFiles: async rows => rows.map(row => ({ ...row, fileName: 'video.mp4' })),
-      inspectCards: async () => uploaded ? [{ index: 0, text: 'video.mp4', hints: [] }] : [],
+      inspectCards: async () => uploaded ? [
+        { index: 0, text: 'video.mp4', hints: [] },
+        { index: 1, text: 'video.mp4', hints: [] }
+      ] : [],
       uploadAll: async () => { uploaded = true; },
-      matchCards: rows => rows.map(row => ({ ...row, cardIndex: 0 })),
+      matchCards: rows => rows.map((row, index) => ({ ...row, cardIndex: index })),
       fillCaptions: async () => {},
       preparePublishNow: async () => ({})
     } };
@@ -36,7 +39,10 @@ test('lượt đã điền xong không khóa tab cho lượt kế tiếp', async
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.ok(ready, 'server thử nghiệm không khởi động');
-    const input = { tabId: 'tab', rows: [{ row: 3, file: 'video.mp4', mode: 'now' }] };
+    const input = { tabId: 'tab', rows: [
+      { row: 3, file: 'video.mp4', mode: 'now' },
+      { row: 4, file: 'video.mp4', mode: 'now' }
+    ] };
     const first = await post('start', input);
     assert.equal(first.status, 200);
     let stage;

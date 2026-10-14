@@ -74,7 +74,7 @@ async function fillJob(job, mapping) {
   job.message = 'Đang điền tiêu đề và mô tả...';
   await meta.fillCaptions(job.page, mapping);
   job.current = 0;
-  if (mapping.length === 1 && mapping[0].mode === 'now') {
+  if (mapping[0]?.mode === 'now') {
     try {
       await meta.preparePublishNow(job.page, mapping[0]);
       job.stage = 'awaitingUpdate';

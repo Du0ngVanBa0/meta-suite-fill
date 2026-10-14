@@ -71,5 +71,12 @@ test('mặc định hôm nay, Đăng ngay một nút, rồi xóa lượt điền
     assert.equal(await page.locator('#rows tr').nth(0).locator('.video-cell select').inputValue(), 'C:\\videos\\three.mp4');
     assert.equal(await page.locator('#rows tr').nth(1).locator('.video-cell select').inputValue(), 'C:\\videos\\four.mp4');
     assert.deepEqual(picks, [{ single: true }, { single: true }]);
+    assert.equal(await page.getByRole('button', { name: 'Đăng ngay tất cả' }).isEnabled({ timeout: 2000 }), true);
+    assert.equal(await page.getByRole('button', { name: 'Hẹn giờ tất cả' }).isDisabled({ timeout: 2000 }), true);
+    await page.getByRole('button', { name: 'Đăng ngay tất cả' }).click();
+    assert.deepEqual(started[1], [
+      { row: 3, mode: 'now', date: '', time: '' },
+      { row: 4, mode: 'now', date: '', time: '' }
+    ]);
   } finally { await browser.close(); }
 });
