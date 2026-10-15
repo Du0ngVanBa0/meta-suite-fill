@@ -35,15 +35,15 @@
       </section>
     </div>
     <section>
-      <div class="section-head"><h2>3. Mẫu giờ của Page & video</h2><span id="pageName" class="badge">Chưa chọn Page</span></div>
+      <div class="section-head"><h2>3. Mẫu giờ chung & video</h2><span id="pageName" class="badge">Chưa chọn Page</span></div>
       <div class="fields preset">
         <label>Ngày bắt đầu <small>mặc định hôm nay</small><input id="startDate" type="date"></label>
         <label>Múi giờ Page <small>tự nhận từ Meta</small><input id="timeZone" readonly placeholder="Tự nhận khi điền lịch"></label>
         <label>Mẫu giờ <small>Ví dụ: 19,21,23 | 7,9 (| = ngày kế)</small><input id="slots" value="19,21,23 | 7,9"></label>
-        <div class="preset-buttons"><button id="applyPreset" class="secondary">Áp vào các hàng</button><button id="savePreset" class="secondary">Lưu mẫu cho Page</button></div>
+        <div class="preset-buttons"><button id="applyPreset" class="secondary">Áp vào các hàng</button><button id="savePreset" class="secondary">Lưu giờ cho tất cả Page</button></div>
       </div>
       <p id="patternPreview" class="hint"></p>
-      <p id="presetStatus" class="hint">Chọn Page để lưu mẫu giờ riêng; ngày bắt đầu mặc định là hôm nay.</p>
+      <p id="presetStatus" class="hint">Mẫu giờ dùng chung cho tất cả Page; ngày bắt đầu mặc định là hôm nay.</p>
       <div class="actions"><button id="pickFiles" class="secondary">Chọn nhiều video một lần</button><span id="fileCount" class="hint">Hoặc chọn từng video ngay tại mỗi hàng.</span></div>
       <div class="table-wrap"><table><thead><tr><th>Hàng</th><th>Tiêu đề / mô tả</th><th>Video local</th><th>Ngày</th><th>Giờ</th><th>Thao tác</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Đọc Sheets để hiện các hàng.</td></tr></tbody></table></div>
       <div class="bottom"><span>Tool chỉ điền; bạn tự bấm Update và Publish trên Meta.</span><div class="actions"><button id="startSchedule" class="secondary" disabled>Hẹn giờ tất cả</button><button id="start" disabled>Đăng ngay tất cả</button></div></div>

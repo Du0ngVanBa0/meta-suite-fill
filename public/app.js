@@ -38,10 +38,17 @@ function fields() {
 
 let settingsTimer;
 let settingsWrite = Promise.resolve();
+let patternEdited = false;
 function currentSettings() {
   let pattern = state.settings.pattern || '19:00, 21:00, 23:00 | 07:00, 09:00';
   try { pattern = Schedule.parsePattern($('slots').value).pattern; } catch { /* Save the last valid pattern. */ }
   return { ...fields(), startDate: $('startDate').value, pattern };
+}
+
+function persistSettings(settings) {
+  const next = settingsWrite.catch(() => {}).then(() => api('config', { settings }));
+  settingsWrite = next.catch(() => {});
+  return next;
 }
 
 function queueSettingsSave() {
@@ -50,34 +57,12 @@ function queueSettingsSave() {
   $('settingsStatus').textContent = 'Đang tự lưu cấu hình Sheets...';
   settingsTimer = setTimeout(() => {
     const settings = currentSettings();
-    settingsWrite = settingsWrite.catch(() => {}).then(() => api('config', { settings })).then(result => {
+    persistSettings(settings).then(result => {
       state.settings = result.settings;
       $('settingsStatus').textContent = 'Đã tự lưu Sheets và cấu hình dùng gần nhất trên máy.';
+      updatePatternPreview();
     }).catch(error => { $('settingsStatus').textContent = `Chưa lưu được cấu hình: ${error.message}`; });
   }, 350);
-}
-
-let presetTimer;
-let presetWrite = Promise.resolve();
-function persistPreset(values) {
-  const next = presetWrite.catch(() => {}).then(() => api('preset', values));
-  presetWrite = next.catch(() => {});
-  return next;
-}
-function queuePresetSave() {
-  updatePatternPreview();
-  queueSettingsSave();
-  if (!state.tab?.assetId) return;
-  clearTimeout(presetTimer);
-  const assetId = state.tab.assetId;
-  const values = { assetId, timeZone: $('timeZone').value, pattern: $('slots').value, startDate: $('startDate').value };
-  presetTimer = setTimeout(async () => {
-    try {
-      const result = await persistPreset(values);
-      state.presets[assetId] = result.preset;
-      if (state.tab?.assetId === assetId) updatePatternPreview();
-    } catch (error) { if (state.tab?.assetId === assetId) $('presetStatus').textContent = `Chưa lưu mẫu giờ: ${error.message}`; }
-  }, 500);
 }
 
 function assignFiles() {
@@ -189,10 +174,6 @@ async function scanTabs() {
   notice(`Đã thấy ${result.tabs.length} tab Meta trong profile.`, true);
 }
 
-function storedPattern(preset) {
-  return preset?.pattern || (Array.isArray(preset?.slots) ? preset.slots.join(', ') : '');
-}
-
 function updatePatternPreview() {
   try {
     const parsed = Schedule.parsePattern($('slots').value);
@@ -204,21 +185,12 @@ function updatePatternPreview() {
       return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}: ${times.join(' · ')}`;
     }).join('  |  ') + ` · Lặp mỗi ${parsed.days.length} ngày.`;
   } catch (error) { $('patternPreview').textContent = error.message; }
-  const preset = state.presets[state.tab?.assetId];
-  const current = `${$('timeZone').value.trim()}\n${$('slots').value.trim()}`;
-  let saved = '';
-  if (preset) {
-    try { saved = `${preset.timeZone}\n${Schedule.parsePattern(storedPattern(preset)).pattern}`; }
-    catch { saved = `${preset.timeZone}\n${storedPattern(preset)}`; }
-  }
-  let normalized = current;
-  try { normalized = `${$('timeZone').value.trim()}\n${Schedule.parsePattern($('slots').value).pattern}`; }
-  catch { /* keep the typed value visible until corrected */ }
-  $('presetStatus').textContent = !state.tab?.assetId
-    ? 'Chọn Page để lưu mẫu giờ riêng; ngày bắt đầu mặc định là hôm nay.'
-    : !preset ? 'Page này chưa có lịch đã lưu. Múi giờ tự nhận từ Meta khi điền.'
-      : saved === normalized ? (preset.timeZone ? 'Đã lưu mẫu giờ và múi giờ Meta cho Page này.' : 'Đã lưu mẫu giờ cho Page này. Múi giờ sẽ tự nhận từ Meta khi điền.')
-        : 'Đang tự lưu thay đổi lịch cho Page này...';
+  let normalized = $('slots').value.trim();
+  try { normalized = Schedule.parsePattern(normalized).pattern; }
+  catch { $('presetStatus').textContent = 'Mẫu giờ chưa hợp lệ; chưa lưu thay đổi.'; return; }
+  $('presetStatus').textContent = normalized === state.settings.pattern
+    ? 'Mẫu giờ đã lưu cho tất cả Page; múi giờ vẫn theo từng Page.'
+    : 'Mẫu giờ mới đang chờ lưu cho tất cả Page.';
 }
 
 function chooseTab() {
@@ -227,9 +199,7 @@ function chooseTab() {
   $('pageName').textContent = state.tab?.assetId ? `Page ID ${state.tab.assetId}` : 'Chưa chọn Page';
   const preset = state.presets[state.tab?.assetId];
   $('timeZone').value = preset?.timeZone || '';
-  $('slots').value = storedPattern(preset) || state.settings.pattern || '19,21,23 | 7,9';
   updatePatternPreview();
-  queuePresetSave();
   updateStart();
 }
 
@@ -253,23 +223,20 @@ async function pickSingle(row) {
   drawRows();
 }
 
-async function savePreset() {
-  if (!state.tab?.assetId) throw new Error('Chọn tab có Page ID trước.');
-  clearTimeout(presetTimer);
-  const assetId = state.tab.assetId;
-  const result = await persistPreset({ assetId, timeZone: $('timeZone').value,
-    pattern: $('slots').value, startDate: $('startDate').value });
-  state.presets[assetId] = result.preset;
-  if (state.tab?.assetId === assetId) {
-    $('slots').value = result.preset.pattern;
-    updatePatternPreview();
-  }
-  notice('Đã lưu mẫu giờ cho Page này trên máy. Ngày sẽ mặc định là hôm nay ở lần mở sau.', true);
+async function saveGlobalPattern() {
+  await presetsReady;
+  clearTimeout(settingsTimer);
+  const pattern = Schedule.parsePattern($('slots').value).pattern;
+  const result = await persistSettings({ ...currentSettings(), pattern });
+  state.settings = result.settings;
+  $('slots').value = result.settings.pattern;
+  updatePatternPreview();
+  notice('Đã lưu mẫu giờ cho tất cả Page trên máy.', true);
 }
 
 async function startRows(rows, mode = 'schedule') {
   const tab = state.tab;
-  if (mode === 'schedule') await savePreset();
+  if (mode === 'schedule') await saveGlobalPattern();
   if (state.tab !== tab) throw new Error('Tab Meta đã thay đổi trong lúc chuẩn bị. Kiểm tra lại rồi bấm điền.');
   const result = await api('start', { tabId: tab.id, rows: rows.map(row => ({ ...row, mode,
     date: mode === 'now' ? '' : row.date, time: mode === 'now' ? '' : row.time })),
@@ -366,7 +333,7 @@ on('scanProfiles', scanProfiles);
 on('scanTabs', scanTabs);
 on('pickFiles', pickFiles);
 on('applyPreset', async () => applyPreset());
-on('savePreset', savePreset);
+on('savePreset', saveGlobalPattern);
 on('start', start);
 on('startSchedule', async () => startRows(state.rows, 'schedule'));
 on('scheduleNext', async () => renderJob((await api('schedule', { jobId: state.jobId })).job));
@@ -377,8 +344,8 @@ $('profile').addEventListener('change', () => { state.tab = null; $('tab').repla
 for (const id of ['sheetUrl', 'sheetTab', 'rowList', 'titleColumn', 'descriptionColumn']) {
   $(id).addEventListener('input', queueSettingsSave);
 }
-$('slots').addEventListener('input', queuePresetSave);
-$('startDate').addEventListener('change', queuePresetSave);
+$('slots').addEventListener('input', () => { patternEdited = true; updatePatternPreview(); queueSettingsSave(); });
+$('startDate').addEventListener('change', () => { updatePatternPreview(); queueSettingsSave(); });
 const today = new Date();
 $('startDate').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 updatePatternPreview();
@@ -388,9 +355,10 @@ const presetsReady = api('presets').then(result => {
   for (const id of ['sheetUrl', 'sheetTab', 'rowList', 'titleColumn', 'descriptionColumn']) {
     if (typeof state.settings[id] === 'string') $(id).value = state.settings[id];
   }
-  if (state.settings.pattern) $('slots').value = state.settings.pattern;
+  if (state.settings.pattern && !patternEdited) $('slots').value = state.settings.pattern;
   state.settingsLoaded = true;
   $('settingsStatus').textContent = 'Cấu hình Sheets và lịch dùng gần nhất được tự lưu trên máy.';
   updatePatternPreview();
+  if (patternEdited) queueSettingsSave();
 }).catch(error => { $('settingsStatus').textContent = `Không tải được cấu hình: ${error.message}`; });
 setInterval(pollJob, 2000);
